@@ -26,6 +26,7 @@
     <label class="row"><input type="checkbox" id="start_minimized" /> <span>Start minimized to tray</span></label>
     <label class="row"><input type="checkbox" id="autostart" /> <span>Launch at system startup</span></label>
     <label class="row"><input type="checkbox" id="notifications" /> <span>Native notifications</span></label>
+    <label class="row"><input type="checkbox" id="hide_titlebar" /> <span>Hide title bar (F9 to toggle)</span></label>
 
     <label class="field">
       <span>Display size</span>
@@ -49,6 +50,13 @@
     </label>
     <p id="hotkey_hint" class="hotkey-hint" hidden></p>
     <p class="field-note">On Linux/Wayland the in-app shortcut can't fire (the desktop blocks global key grabs). Bind <code>whatrust --toggle</code> in your system keyboard settings instead — see the README.</p>
+
+    <hr class="divider" />
+    <h2 class="section-title">In-app shortcuts</h2>
+    <p class="field-note">Work inside a WhatsApp window:<br />
+      <code>Ctrl+1</code> ... <code>Ctrl+9</code> &mdash; switch to that account<br />
+      <code>Ctrl+,</code> &mdash; open Settings<br />
+      <code>F9</code> &mdash; toggle native title bar / hover bar</p>
 
     <hr class="divider" />
     <h2 class="section-title">Security</h2>

@@ -89,6 +89,110 @@ pub fn set_unread(window: tauri::Window, app: tauri::AppHandle, title: String) {
     crate::tray::rebuild_menu(&app);
 }
 
+/// Flip the "hide title bar" setting. Called from the WhatsApp page (F9 in
+/// bridge.js), so it is deliberately reachable from remote `wa-*` windows: it can
+/// only toggle one cosmetic boolean. Refused while the app is locked.
+#[tauri::command]
+pub fn toggle_titlebar(app: tauri::AppHandle) -> Result<bool, String> {
+    lock::require_unlocked(&app)?;
+    let mut s = crate::settings::load(&app);
+    s.hide_titlebar = !s.hide_titlebar;
+    crate::settings::save(&app, &s).map_err(|e| e.to_string())?;
+    crate::window::apply_titlebar_all(&app, s.hide_titlebar);
+    Ok(s.hide_titlebar)
+}
+
+/// Whether the title bar is currently hidden. `get_settings` is refused for remote
+/// pages, so bridge.js uses this to decide whether to show its drag strip.
+#[tauri::command]
+pub fn titlebar_hidden(app: tauri::AppHandle) -> bool {
+    crate::settings::load(&app).hide_titlebar
+}
+
+/// Start an OS window drag from the bridge's top strip. Account windows only.
+#[tauri::command]
+pub fn start_drag(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
+    lock::require_unlocked(&app)?;
+    if !is_remote(&window) {
+        return Err("forbidden".into());
+    }
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+/// Maximize/restore the calling account window (double-click on the drag strip).
+#[tauri::command]
+pub fn toggle_maximize(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
+    lock::require_unlocked(&app)?;
+    if !is_remote(&window) {
+        return Err("forbidden".into());
+    }
+    let maximized = window.is_maximized().map_err(|e| e.to_string())?;
+    if maximized {
+        window.unmaximize().map_err(|e| e.to_string())
+    } else {
+        window.maximize().map_err(|e| e.to_string())
+    }
+}
+
+/// Minimize the calling account window (hover bar button). Account windows only.
+#[tauri::command]
+pub fn window_minimize(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
+    lock::require_unlocked(&app)?;
+    if !is_remote(&window) {
+        return Err("forbidden".into());
+    }
+    window.minimize().map_err(|e| e.to_string())
+}
+
+/// Close the calling account window. Uses `close()` so the CloseRequested handler
+/// (close-to-tray) still applies. Account windows only.
+#[tauri::command]
+pub fn window_close(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
+    lock::require_unlocked(&app)?;
+    if !is_remote(&window) {
+        return Err("forbidden".into());
+    }
+    window.close().map_err(|e| e.to_string())
+}
+
+/// Focus the `index`-th account (0-based, display order), opening its window if it
+/// was closed. Out-of-range is a no-op. Account windows only (Ctrl+1..9 in bridge.js).
+#[tauri::command]
+pub async fn switch_account(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+    index: usize,
+) -> Result<(), String> {
+    lock::require_unlocked(&app)?;
+    if !is_remote(&window) {
+        return Err("forbidden".into());
+    }
+    let Some(acct) = accounts::account_at(&accounts::load(&app), index) else {
+        return Ok(());
+    };
+    let label = accounts::window_label(&acct.id);
+    if app.get_webview_window(&label).is_none() {
+        crate::window::open_account_window(&app, &acct, false).map_err(|e| e.to_string())?;
+    }
+    crate::window::show_account(&app, &label);
+    if let Some(active) = app.try_state::<ActiveAccount>() {
+        *active.lock().unwrap() = label;
+    }
+    Ok(())
+}
+
+/// Open the settings window from the WhatsApp page (Ctrl+,). Account windows only;
+/// `open_settings` stays denied to remote pages.
+#[tauri::command]
+pub async fn open_settings_from_page(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
+    lock::require_unlocked(&app)?;
+    if !is_remote(&window) {
+        return Err("forbidden".into());
+    }
+    crate::window::open_settings_window(&app);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn get_settings(window: tauri::Window, app: tauri::AppHandle) -> Result<Settings, String> {
     if is_remote(&window) {
@@ -114,7 +218,7 @@ pub fn set_settings(
 }
 
 #[tauri::command]
-pub fn open_settings(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
+pub async fn open_settings(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
     if is_remote(&window) {
         return Err("forbidden".into());
     }
@@ -269,7 +373,7 @@ pub fn rename_account(
 }
 
 #[tauri::command]
-pub fn open_account(
+pub async fn open_account(
     window: tauri::Window,
     app: tauri::AppHandle,
     id: String,

@@ -24,6 +24,13 @@ pub const CHROME_UA: &str =
 pub const CHROME_UA: &str =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
+/// WebView2 browser arguments. Replacing them drops Tauri's defaults, so the default
+/// `--disable-features` list is repeated. `--disable-gpu` works around the mouse
+/// pointer vanishing over the window on some Windows GPU drivers.
+#[cfg(target_os = "windows")]
+const WEBVIEW2_BROWSER_ARGS: &str =
+    "--disable-features=msWebOOUI,msPluginValueSerialization --disable-gpu";
+
 const BRIDGE_JS: &str = include_str!("../resources/bridge.js");
 const APP_ICON: &[u8] = include_bytes!("../icons/128x128.png");
 
@@ -53,6 +60,7 @@ pub fn open_account_window(
         .icon(icon)?
         .user_agent(CHROME_UA)
         .initialization_script(BRIDGE_JS)
+        .decorations(!crate::settings::load(app).hide_titlebar)
         // Drag-and-drop is done by capturing the OS drop in Rust and streaming the file
         // into the page (see `register_drop_handler` + bridge.js `__whatrustDropFeed`).
         // We deliberately KEEP Tauri's drag-drop handler enabled: on Linux/webkit2gtk the
@@ -113,6 +121,9 @@ pub fn open_account_window(
         })
         .visible(!start_hidden);
 
+    #[cfg(target_os = "windows")]
+    let builder = builder.additional_browser_args(WEBVIEW2_BROWSER_ARGS);
+
     let builder = apply_isolation(builder, account, app);
     let win = builder.build()?;
 
@@ -158,6 +169,16 @@ pub fn apply_zoom_all(app: &AppHandle, zoom: f64) {
     for a in accounts::load(app).accounts {
         if let Some(w) = app.get_webview_window(&accounts::window_label(&a.id)) {
             apply_zoom(&w, zoom);
+        }
+    }
+}
+
+/// Show or hide the native title bar on every open account window, so the
+/// setting (or the F9 toggle) takes effect immediately.
+pub fn apply_titlebar_all(app: &AppHandle, hidden: bool) {
+    for a in accounts::load(app).accounts {
+        if let Some(w) = app.get_webview_window(&accounts::window_label(&a.id)) {
+            let _ = w.set_decorations(!hidden);
         }
     }
 }
@@ -1420,6 +1441,13 @@ mod tests {
         assert_eq!(mime_for("movie.qt"), "video/quicktime");
         assert_eq!(mime_for("pic.hif"), "image/heif");
         assert_eq!(mime_for("clip.3gp2"), "video/3gpp2");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn webview2_args_disable_gpu_and_keep_default_feature_flags() {
+        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--disable-gpu"));
+        assert!(super::WEBVIEW2_BROWSER_ARGS.contains("--disable-features=msWebOOUI"));
     }
 
     #[test]

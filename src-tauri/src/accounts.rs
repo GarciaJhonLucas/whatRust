@@ -113,6 +113,14 @@ pub fn id_from_label(label: &str) -> Option<&str> {
     label.strip_prefix("wa-")
 }
 
+/// Resolve the `index`-th account (0-based) in display order (`order`, the same
+/// order the tray and the Accounts list use). `None` when out of range.
+pub fn account_at(f: &AccountsFile, index: usize) -> Option<Account> {
+    let mut sorted: Vec<&Account> = f.accounts.iter().collect();
+    sorted.sort_by_key(|a| a.order);
+    sorted.get(index).map(|a| (*a).clone())
+}
+
 /// The on-disk profile directory for an account (Linux/Windows data_directory).
 pub fn profile_dir(app: &AppHandle, id: &str) -> tauri::Result<PathBuf> {
     Ok(app.path().app_data_dir()?.join("profiles").join(id))
@@ -361,6 +369,25 @@ mod tests {
         m.insert("acct-1".to_string(), 4);
         m.insert("acct-2".to_string(), 0);
         assert_eq!(aggregate_unread(&m), 7);
+    }
+
+    #[test]
+    fn account_at_resolves_by_display_order_not_storage_order() {
+        let mut f = AccountsFile::default();
+        let b = add(&mut f, "B");
+        let c = add(&mut f, "C");
+        // Shuffle storage order; display order (`order`) must still win.
+        f.accounts.reverse();
+        assert_eq!(account_at(&f, 0).unwrap().id, "default");
+        assert_eq!(account_at(&f, 1).unwrap().id, b.id);
+        assert_eq!(account_at(&f, 2).unwrap().id, c.id);
+    }
+
+    #[test]
+    fn account_at_out_of_range_is_none() {
+        let f = AccountsFile::default();
+        assert!(account_at(&f, 1).is_none());
+        assert!(account_at(&f, usize::MAX).is_none());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 const invoke = window.__TAURI__.core.invoke;
-const BOOLS = ["close_to_tray", "start_minimized", "autostart", "notifications", "hotkey_enabled"];
+const BOOLS = ["close_to_tray", "start_minimized", "autostart", "notifications", "hotkey_enabled", "hide_titlebar"];
 const ZOOM_DEFAULT = 1;
 
 // settings.json holds a zoom factor, not a preset name, so a stored value need
@@ -155,6 +155,7 @@ async function addAccount() {
 
 window.addEventListener("DOMContentLoaded", () => {
   load();
+  window.addEventListener("focus", () => { load().catch(() => {}); });
   loadAccounts();
   loadLock();
   wireLock();

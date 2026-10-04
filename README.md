@@ -56,6 +56,7 @@ The official WhatsApp Desktop app is built on Electron, which packs an entire Ch
 - **Voice messages** everywhere, plus **voice & video calls** where the system webview ships WebRTC (Windows and macOS; most Linux distros build WebKitGTK without WebRTC, so calling isn't available on Linux)
 - **Drag and drop files and images** — drop a photo, video, or document straight onto a chat to attach it
 - **Launch at startup** (auto-start), optional
+- **In-app shortcuts** (inside a WhatsApp window): `Ctrl+1`…`Ctrl+9` switch account, `Ctrl+,` opens Settings, `F9` toggles the native title bar (when hidden, hover the top edge for a slim bar with drag/minimize/maximize/close).
 - **Global keyboard shortcut** to show/hide the window (default `Ctrl/Cmd+Shift+W`; record your own by pressing the keys in Settings). On **Wayland**, bind `whatrust --toggle` to a system shortcut instead — see the FAQ.
 - **Single instance** — relaunching focuses the running window; `whatrust --toggle` from a second launch shows/hides it
 - **Remembers window size and position**

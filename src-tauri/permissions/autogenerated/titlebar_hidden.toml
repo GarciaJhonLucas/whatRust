@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-titlebar-hidden"
+description = "Enables the titlebar_hidden command without any pre-configured scope."
+commands.allow = ["titlebar_hidden"]
+
+[[permission]]
+identifier = "deny-titlebar-hidden"
+description = "Denies the titlebar_hidden command without any pre-configured scope."
+commands.deny = ["titlebar_hidden"]

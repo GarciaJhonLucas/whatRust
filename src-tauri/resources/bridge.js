@@ -199,6 +199,120 @@
     }
   } catch (e) {}
 
+  // Custom title bar. When the native bar is hidden (setting `hide_titlebar`), a thin
+  // hover zone at the top expands into a 30px bar with drag / maximize / minimize /
+  // close. F9 toggles native bar <-> hover bar; Ctrl+1..9 and Ctrl+, are app shortcuts.
+  var TB_COLLAPSED = 8, TB_EXPANDED = 30, TB_HIDE_DELAY = 400;
+  var tbBar = null, tbTimer = null;
+  function tbBtn(label, glyph, cmd, danger) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.textContent = glyph;
+    b.style.cssText = "all:unset;box-sizing:border-box;width:46px;height:" + TB_EXPANDED +
+      "px;text-align:center;color:#e9edef;font:14px/" + TB_EXPANDED +
+      "px 'Segoe UI Symbol','Segoe UI',sans-serif;cursor:default;";
+    b.addEventListener("mouseenter", function () {
+      b.style.background = danger ? "#e81123" : "rgba(255,255,255,.14)";
+    });
+    b.addEventListener("mouseleave", function () { b.style.background = "transparent"; });
+    b.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    b.addEventListener("dblclick", function (e) { e.stopPropagation(); });
+    b.addEventListener("click", function (e) { e.stopPropagation(); invoke(cmd); });
+    return b;
+  }
+  function tbExpand() {
+    if (tbTimer) { clearTimeout(tbTimer); tbTimer = null; }
+    if (tbBar) {
+      tbBar.style.height = TB_EXPANDED + "px";
+      tbBar.style.background = "rgba(24,24,24,.94)";
+      tbBar.firstChild.style.opacity = "1";
+    }
+  }
+  function tbCollapse() {
+    if (tbTimer) clearTimeout(tbTimer);
+    tbTimer = setTimeout(function () {
+      tbTimer = null;
+      if (!tbBar) return;
+      tbBar.style.height = TB_COLLAPSED + "px";
+      tbBar.style.background = "rgba(24,24,24,0)";
+      tbBar.firstChild.style.opacity = "0";
+    }, TB_HIDE_DELAY);
+  }
+  function setHoverBar(hidden) {
+    if (!hidden) {
+      if (tbTimer) { clearTimeout(tbTimer); tbTimer = null; }
+      if (tbBar && tbBar.parentNode) tbBar.parentNode.removeChild(tbBar);
+      return;
+    }
+    if (!tbBar) {
+      tbBar = document.createElement("div");
+      tbBar.id = "whatrust-titlebar";
+      tbBar.style.cssText = "position:fixed;top:0;left:0;right:0;height:" + TB_COLLAPSED +
+        "px;z-index:2147483647;overflow:hidden;box-sizing:border-box;" +
+        "border-top:1px solid rgba(160,160,160,.45);background:rgba(24,24,24,0);" +
+        "transition:height .15s ease,background .15s ease;cursor:default;user-select:none;";
+      var inner = document.createElement("div");
+      inner.style.cssText = "display:flex;align-items:stretch;height:" + TB_EXPANDED +
+        "px;opacity:0;transition:opacity .15s ease;";
+      var drag = document.createElement("div");
+      drag.style.cssText = "flex:1;color:#aebac1;font:12px/" + TB_EXPANDED +
+        "px 'Segoe UI',sans-serif;padding-left:12px;overflow:hidden;white-space:nowrap;";
+      drag.textContent = "whatRust";
+      drag.addEventListener("mousedown", function (e) {
+        if (e.button === 0) { e.preventDefault(); invoke("start_drag"); }
+      });
+      drag.addEventListener("dblclick", function () { invoke("toggle_maximize"); });
+      inner.appendChild(drag);
+      inner.appendChild(tbBtn("Minimize", "–", "window_minimize", false));
+      inner.appendChild(tbBtn("Maximize / Restore", "□", "toggle_maximize", false));
+      inner.appendChild(tbBtn("Close", "✕", "window_close", true));
+      tbBar.appendChild(inner);
+      tbBar.addEventListener("mouseenter", tbExpand);
+      tbBar.addEventListener("mouseleave", tbCollapse);
+    }
+    (document.body || document.documentElement).appendChild(tbBar);
+  }
+  function showToast(text) {
+    var t = document.createElement("div");
+    t.textContent = text;
+    t.style.cssText = "position:fixed;left:50%;bottom:32px;transform:translateX(-50%);" +
+      "z-index:2147483647;padding:8px 16px;border-radius:8px;background:rgba(24,24,24,.94);" +
+      "color:#e9edef;font:13px 'Segoe UI',sans-serif;pointer-events:none;";
+    (document.body || document.documentElement).appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 1200);
+  }
+  function tauriInvoke(cmd, args) {
+    var t = window.__TAURI__;
+    return t && t.core ? t.core.invoke(cmd, args) : null;
+  }
+  function syncHoverBar() {
+    var p = tauriInvoke("titlebar_hidden");
+    if (p) p.then(setHoverBar).catch(function () {});
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", syncHoverBar);
+  else syncHoverBar();
+  document.addEventListener("keydown", function (e) {
+    if (e.shiftKey || e.altKey || e.metaKey) return;
+    if (!e.ctrlKey && e.key === "F9") {
+      e.preventDefault();
+      var p = tauriInvoke("toggle_titlebar");
+      if (p) p.then(function (hidden) {
+        setHoverBar(hidden);
+        showToast(hidden ? "Title bar hidden" : "Title bar shown");
+      }).catch(function () {});
+    } else if (e.ctrlKey && e.key.length === 1 && e.key >= "1" && e.key <= "9") {
+      e.preventDefault();
+      e.stopPropagation();
+      invoke("switch_account", { index: Number(e.key) - 1 });
+    } else if (e.ctrlKey && e.key === ",") {
+      e.preventDefault();
+      e.stopPropagation();
+      invoke("open_settings_from_page");
+    }
+  }, true);
+
   // 3) Unread count — forward the raw <title> string on change; Rust parses it.
   var lastTitle = "";
   function report() {
